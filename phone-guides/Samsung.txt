@@ -1,0 +1,21 @@
+﻿Samsung Galaxy（三星／One UI）
+
+這次需要開發人員選項與 USB 偵錯，不需要 Root、裝置管理員或 OEM 解鎖。
+
+1. 開啟「設定 → 關於手機 → 軟體資訊 → 版本號碼」（Build number）。
+2. 連點版本號碼 7 次，直到提示已開啟開發人員模式。若要求手機的 PIN、圖形或密碼，請本人輸入。
+3. 回到設定主頁，捲動到最下方，開啟「開發人員選項」。部分舊版可能在「一般」內。
+4. 保持總開關開啟，開啟「USB 偵錯」，並確認手機上的說明。
+5. 接上可傳資料的 USB 線，解鎖手機；出現「允許 USB 偵錯？」及 RSA 指紋時，確認是這次使用的電腦後按「允許」。
+6. 回小工具重新整理裝置。裝置顯示 device 後，按「瀏覽 APK」選檔安裝。
+
+若 USB 指令或 APK 安裝被封鎖，可查看「設定 → 安全性與隱私權 → 自動封鎖程式」。Samsung 官方說明此功能可能封鎖 USB 指令與非商店安裝；只有確認 APK 可信、裝置由你管理並允許變更時，才依官方指引暫時調整，完成後恢復原設定。工具不會替你關閉它。
+
+若 USB 偵錯呈灰色、顯示管理員限制，或屬於受管理手機，請由有權管理的人員處理。Windows 找不到裝置時，檢查資料線及 Samsung Android USB Driver；驅動安裝可能需要管理員權限。
+
+首次授權完成後，下次連接同一台電腦可能不再顯示確認框。若清單同時有其他手機或模擬器，請確認選對目標，避免把 APK 安裝到另一個裝置；不確定時先拔除其他裝置再重新整理。
+
+官方來源：
+https://www.samsung.com/us/support/answer/ANS10003430/
+https://developer.samsung.com/mobile/galaxy-sdk-getting-started.html
+https://www.samsung.com/tw/support/mobile-devices/protect-your-galaxy-device-with-the-new-auto-blocker-feature/

@@ -1,0 +1,19 @@
+﻿Sony Xperia
+
+開啟「開發人員選項」與「USB 偵錯」即可使用本工具；不需要 Root、解鎖開機載入器或刷機。
+
+1. 在較新的 Xperia，開啟「設定 → 關於手機 → 版本號碼」。部分較舊版本的路徑為「設定 → 系統 → 關於手機 → 版本號碼」。
+2. 連續點選「版本號碼」7 次，直到手機提示已啟用開發人員選項。若要求 PIN、圖形或密碼，請在手機上本人輸入。
+3. 返回「設定 → 系統 → 開發人員選項」。若看不到，先展開「進階」；更舊的系統可能直接在設定主頁顯示開發人員選項。
+4. 保持開發人員選項總開關開啟，找到「USB 偵錯」並開啟，確認手機的說明視窗。
+5. 使用可傳資料的 USB 線連接電腦，保持手機解鎖。出現「允許 USB 偵錯？」及 RSA 指紋時，確認此次連接的電腦後按「允許」。
+6. 回小工具重新整理裝置，按「瀏覽 APK」選檔；裝置顯示 device 後開始安裝。
+
+如果電腦只能充電或仍找不到手機，換資料線或 USB 孔後重試；可從手機 USB 通知選「檔案傳輸」。若 Windows 缺少 ADB 驅動，請依 Xperia 機型及 Sony 官方說明處理。不同 Android 版本的位置會不同，可在設定搜尋「開發人員選項」。不要為了安裝 APK 執行 Xperia 軟體修復或還原原廠設定。
+
+若工具顯示未授權，代表已找到手機但尚未允許這台電腦；請先看手機畫面。開發人員選項已存在時可直接使用，不用關閉再重新開啟。裝好後在手機開啟應用程式確認。
+
+官方來源：
+https://store.sony.com.tw/xperia/service.aspx
+https://www.sony.com.tw/zh/electronics/support/software/00342825
+https://www.sony.com.tw/zh/electronics/support/mobile-phones-tablets-mobile-phones/xperia-x/articles/SX380701
