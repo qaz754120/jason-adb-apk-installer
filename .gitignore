@@ -1,0 +1,39 @@
+# Private device/application material
+*.apk
+*.apks
+*.xapk
+*.aab
+logs/
+*.log
+ADB-install-*.txt
+upload/
+screenshots-private/
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+*.keystore
+adbkey
+adbkey.pub
+
+# Local builds and third-party runtime binaries
+*.exe
+*.dll
+*.pdb
+*.mdb
+*.zip
+bin/
+obj/
+release/
+platform-tools/*
+!platform-tools/README.txt
+
+# Local editor/runtime state
+.vs/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
