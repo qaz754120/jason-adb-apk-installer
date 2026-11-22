@@ -37,3 +37,13 @@ platform-tools/*
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Update-signing secrets and user-specific update state
+*private-key*
+*signing-key*
+*AUTHOR_ONLY*
+author-private/
+private-signing/
+update-state/
+update-work/
+*.transaction.json
