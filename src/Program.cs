@@ -12,8 +12,8 @@ using System.Diagnostics;
 
 [assembly: AssemblyTitle("小金 ADB 安裝助手")]
 [assembly: AssemblyDescription("繁體中文 APK 一鍵安裝工具")]
-[assembly: AssemblyVersion("1.0.1.0")]
-[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 [assembly: AssemblyCopyright("© 2026 Jason1993余")]
 
 namespace Jason1993Yu.AdbApkTool
@@ -30,12 +30,41 @@ namespace Jason1993Yu.AdbApkTool
                 MessageBox.Show("程式遇到問題：\r\n" + e.Exception.Message,
                     "小金 ADB 安裝助手", MessageBoxButtons.OK, MessageBoxIcon.Error);
             };
-            Application.Run(new MainForm(args));
-            return 0;
+            IDisposable lease = null;
+            try
+            {
+                if (!IsPreviewInvocation(args))
+                {
+                    lease = InstallationLease.TryAcquire(AppDomain.CurrentDomain.BaseDirectory);
+                    if (lease == null)
+                    {
+                        MessageBox.Show("這個資料夾的程式已開啟，或更新正在進行。請回到原視窗，等候完成後再開啟。",
+                            "小金 ADB 安裝助手", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return 1;
+                    }
+                }
+                Application.Run(new MainForm(args));
+                return 0;
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("無法啟動程式：\r\n" + e.Message,
+                    "小金 ADB 安裝助手", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return 1;
+            }
+            finally { if (lease != null) lease.Dispose(); }
+        }
+
+        private static bool IsPreviewInvocation(string[] args)
+        {
+            return args.Any(arg => arg == "--ui-preview" || arg == "--guide-preview"
+                || arg == "--advanced-preview" || arg == "--update-preview"
+                || arg == "--mandatory-update-preview" || arg == "--snapshot"
+                || arg == "--snapshot-help");
         }
     }
 
-    public sealed class MainForm : Form
+    public sealed partial class MainForm : Form
     {
         private readonly string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         private readonly List<string> apkFiles = new List<string>();
@@ -63,7 +92,7 @@ namespace Jason1993Yu.AdbApkTool
 
         public MainForm(string[] args)
         {
-            Text = "小金 ADB 安裝助手  |  v1.0.1";
+            Text = "小金 ADB 安裝助手  |  v" + UpdateTrust.Version;
             AutoScaleMode = AutoScaleMode.Dpi;
             AutoScaleDimensions = new SizeF(96, 96);
             Font = new Font("Microsoft JhengHei UI", 10F);
@@ -79,10 +108,12 @@ namespace Jason1993Yu.AdbApkTool
             foreach (string arg in args)
             {
                 if (arg == "--one-click") startImmediately = true;
-                else if (arg == "--snapshot-help") snapshotGuide = true;
-                else if (arg == "--ui-preview") previewMode = true;
-                else if (arg == "--guide-preview") guidePreview = true;
-                else if (arg == "--advanced-preview") advancedPreview = true;
+                else if (arg == "--snapshot-help") { snapshotGuide = true; previewMode = true; }
+                else if (arg == "--ui-preview" || arg == "--snapshot") previewMode = true;
+                else if (arg == "--guide-preview") { guidePreview = true; previewMode = true; }
+                else if (arg == "--advanced-preview") { advancedPreview = true; previewMode = true; }
+                else if (arg == "--update-preview") { updatePreview = true; previewMode = true; }
+                else if (arg == "--mandatory-update-preview") { updatePreview = true; mandatoryUpdatePreview = true; previewMode = true; }
             }
             for (int i = 0; i < args.Length; i++)
             {
@@ -100,6 +131,7 @@ namespace Jason1993Yu.AdbApkTool
             }
             if (apkFiles.Count == 0 && !previewMode) DiscoverApk();
             RefreshFileList();
+            InitializeUpdates();
             DragEnter += OnDragEnter;
             DragDrop += OnDragDrop;
             apkList.AllowDrop = true;
@@ -110,20 +142,26 @@ namespace Jason1993Yu.AdbApkTool
             logTimer.Start();
             Shown += async delegate
             {
-                if (previewMode) { PrepareSnapshot(); return; }
+                if (previewMode) { PrepareSnapshot(); ShowUpdatePreviewIfRequested(); return; }
                 AppendLog("歡迎。按「瀏覽 APK」選檔，再按「一鍵安裝」。不需要手動輸入指令。");
+                await CheckForUpdatesAsync(false);
+                if (IsDisposed || Disposing || closingForUpdate || updateGateRequired) return;
                 if (startImmediately) await InstallAsync();
                 else if (!String.IsNullOrEmpty(adbPath.Text)) await RefreshDevicesAsync();
                 else SetStatus("找不到 ADB。請完整解壓縮，或到進階選項選擇 adb.exe。", true);
             };
             FormClosing += delegate(object sender, FormClosingEventArgs e)
             {
-                if (!busy) return;
+                if (!busy)
+                {
+                    updateLifetime.Cancel();
+                    return;
+                }
                 e.Cancel = true;
                 if (cancellation != null) cancellation.Cancel();
                 SetStatus("正在停止本次指令。完成後即可關閉視窗；手機端可能已開始安裝。", true);
             };
-            FormClosed += delegate { logTimer.Dispose(); };
+            FormClosed += delegate { logTimer.Dispose(); updateLifetime.Cancel(); updateLifetime.Dispose(); };
         }
 
         private Button MakeButton(string text, int width)
@@ -199,17 +237,27 @@ namespace Jason1993Yu.AdbApkTool
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
             shell.Controls.Add(layout, 0, 1);
 
-            FlowLayoutPanel helpRow = new FlowLayoutPanel();
+            TableLayoutPanel helpRow = new TableLayoutPanel();
             helpRow.Dock = DockStyle.Fill;
-            helpRow.WrapContents = false;
+            helpRow.ColumnCount = 3;
+            helpRow.RowCount = 1;
+            helpRow.Margin = Padding.Empty;
+            helpRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 168));
+            helpRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            helpRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 136));
             Button help = MakeButton("手機設定教學", 158);
+            help.Dock = DockStyle.Fill;
             help.Click += delegate { ShowGuide(); };
-            Label helpText = MakeLabel("第一次連接？依手機品牌查看 USB 偵錯與授權步驟。");
-            helpText.Dock = DockStyle.None;
-            helpText.Width = 650;
-            helpText.Height = 34;
-            helpRow.Controls.Add(help);
-            helpRow.Controls.Add(helpText);
+            Label helpText = MakeLabel("第一次連接？查看 USB 偵錯與手機授權步驟。");
+            helpText.Font = new Font(Font.FontFamily, 9);
+            helpText.AutoEllipsis = true;
+            updateSettings = MakeButton("更新與提醒", 128);
+            updateSettings.Name = "UpdateSettingsButton";
+            updateSettings.Dock = DockStyle.Fill;
+            updateSettings.Click += async delegate { await CheckForUpdatesAsync(true); };
+            helpRow.Controls.Add(help, 0, 0);
+            helpRow.Controls.Add(helpText, 1, 0);
+            helpRow.Controls.Add(updateSettings, 2, 0);
             layout.Controls.Add(helpRow, 0, 0);
 
             GroupBox filesBox = new GroupBox();
@@ -503,13 +551,13 @@ namespace Jason1993Yu.AdbApkTool
 
         private void OnDragEnter(object sender, DragEventArgs e)
         {
-            e.Effect = !busy && e.Data.GetDataPresent(DataFormats.FileDrop)
+            e.Effect = !busy && !updateGateRequired && !updateChecking && e.Data.GetDataPresent(DataFormats.FileDrop)
                 ? DragDropEffects.Copy : DragDropEffects.None;
         }
 
         private void OnDragDrop(object sender, DragEventArgs e)
         {
-            if (busy) return;
+            if (busy || updateGateRequired || updateChecking) return;
             string[] paths = e.Data.GetData(DataFormats.FileDrop) as string[];
             if (paths == null || paths.Length == 0) return;
             if (paths.Any(p => !String.Equals(Path.GetExtension(p), ".apk", StringComparison.OrdinalIgnoreCase) || !File.Exists(p)))
@@ -526,8 +574,7 @@ namespace Jason1993Yu.AdbApkTool
         private void SetBusy(bool value)
         {
             busy = value;
-            install.Enabled = !value;
-            foreach (Control control in locks) control.Enabled = !value;
+            ApplyUpdateControlState();
             cancel.Enabled = value;
             progress.Style = value ? ProgressBarStyle.Marquee : ProgressBarStyle.Continuous;
             progress.MarqueeAnimationSpeed = value ? 30 : 0;
@@ -609,7 +656,7 @@ namespace Jason1993Yu.AdbApkTool
 
         private async Task RefreshDevicesAsync()
         {
-            if (busy || !EnsureAdb()) return;
+            if (previewMode || busy || !CanUseInstaller || !EnsureAdb()) return;
             DeviceInfo before = devices.SelectedItem as DeviceInfo;
             string selected = before == null ? rememberedSerial : before.Serial;
             string adb = adbPath.Text;
@@ -650,7 +697,8 @@ namespace Jason1993Yu.AdbApkTool
 
         private async Task InstallAsync()
         {
-            if (busy) return;
+            if (previewMode) { SetStatus("介面預覽不會執行 ADB 或更新。", false); return; }
+            if (busy || !CanUseInstaller) return;
             if (apkFiles.Count == 0 && !ChooseApk()) return;
             if (!EnsureAdb()) return;
             string[] files = apkFiles.ToArray();
